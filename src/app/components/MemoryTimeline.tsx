@@ -1,165 +1,198 @@
-import { Calendar, FileAudio, FileText, Sparkles, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+import {
+  Calendar,
+  FileAudio,
+  FileText,
+  Mic,
+  StickyNote,
+  Sparkles,
+  ChevronRight,
+  Search,
+} from 'lucide-react';
+import { useApp } from '../context/AppContext';
+import MemoryDetailModal from './MemoryDetailModal';
+import type { Memory } from '../types';
 
-interface Memory {
-  id: string;
-  date: string;
-  title: string;
-  type: 'audio' | 'text';
-  transcript: string;
-  keyPoints: string[];
-  duration?: string;
-}
+const TYPE_ICON: Record<Memory['type'], React.ReactNode> = {
+  audio: <FileAudio className="w-5 h-5 text-accent" />,
+  text: <FileText className="w-5 h-5 text-secondary" />,
+  recording: <Mic className="w-5 h-5 text-primary" />,
+  note: <StickyNote className="w-5 h-5 text-primary" />,
+};
 
-// Mock data - will be replaced with Supabase data
-const mockMemories: Memory[] = [
-  {
-    id: '1',
-    date: '2026-04-29',
-    title: 'Morning Studio Sync - Camera Settings Issue',
-    type: 'audio',
-    transcript: 'Discussed the recurring issue with camera white balance settings for product shots...',
-    keyPoints: [
-      'White balance needs calibration every morning',
-      'Custom preset created for GAP denim products',
-      'Update SOP document with new settings'
-    ],
-    duration: '12:34'
-  },
-  {
-    id: '2',
-    date: '2026-04-28',
-    title: 'Tech Support - Lighting Rig Troubleshooting',
-    type: 'audio',
-    transcript: 'Troubleshooting session for the new LED lighting rig installation...',
-    keyPoints: [
-      'LED panel firmware needs update',
-      'Color temperature drift resolved',
-      'Scheduled maintenance protocol established'
-    ],
-    duration: '18:22'
-  },
-  {
-    id: '3',
-    date: '2026-04-27',
-    title: 'Equipment Inventory Notes',
-    type: 'text',
-    transcript: 'Completed quarterly equipment audit. All camera bodies accounted for...',
-    keyPoints: [
-      '3 lens filters need replacement',
-      'Backup hard drives ordered',
-      'Tether cable inventory updated'
-    ]
-  }
-];
+const TYPE_BG: Record<Memory['type'], string> = {
+  audio: 'bg-accent/20',
+  text: 'bg-secondary/20',
+  recording: 'bg-primary/20',
+  note: 'bg-primary/20',
+};
 
 export default function MemoryTimeline() {
-  const groupedByDate = mockMemories.reduce((acc, memory) => {
-    if (!acc[memory.date]) {
-      acc[memory.date] = [];
-    }
+  const { memories, searchQuery } = useApp();
+  const [range, setRange] = useState('7');
+  const [selected, setSelected] = useState<Memory | null>(null);
+
+  // Filter by date range
+  const cutoff = Date.now() - parseInt(range, 10) * 86400000;
+  const filtered = memories.filter((m) => {
+    const inRange = range === 'all' || new Date(m.date).getTime() >= cutoff;
+    if (!inRange) return false;
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      m.title.toLowerCase().includes(q) ||
+      m.transcript.toLowerCase().includes(q) ||
+      m.keyPoints.some((kp) => kp.toLowerCase().includes(q))
+    );
+  });
+
+  const groupedByDate = filtered.reduce((acc, memory) => {
+    if (!acc[memory.date]) acc[memory.date] = [];
     acc[memory.date].push(memory);
     return acc;
   }, {} as Record<string, Memory[]>);
 
+  const sortedDates = Object.keys(groupedByDate).sort((a, b) => (a > b ? -1 : 1));
+
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h2>Your Work Memory Bank</h2>
-          <p className="text-muted-foreground mt-1">
-            Day-by-day record of important conversations and notes
-          </p>
+    <>
+      <div className="max-w-4xl mx-auto">
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h2>Your Work Memory Bank</h2>
+            <p className="text-muted-foreground mt-1">
+              {filtered.length} {filtered.length === 1 ? 'memory' : 'memories'}
+              {searchQuery && ` matching "${searchQuery}"`}
+            </p>
+          </div>
+          <select
+            value={range}
+            onChange={(e) => setRange(e.target.value)}
+            className="px-4 py-2 bg-white/50 backdrop-blur-sm border border-white/40 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 3 months</option>
+            <option value="all">All time</option>
+          </select>
         </div>
-        <select className="px-4 py-2 bg-white/50 backdrop-blur-sm border border-white/40 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30">
-          <option>Last 7 days</option>
-          <option>Last 30 days</option>
-          <option>Last 3 months</option>
-          <option>All time</option>
-        </select>
-      </div>
 
-      <div className="space-y-8">
-        {Object.entries(groupedByDate).map(([date, memories]) => (
-          <div key={date}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-secondary to-primary flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h3>{new Date(date).toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  month: 'long',
-                  day: 'numeric'
-                })}</h3>
-                <p className="text-sm text-muted-foreground">{memories.length} memories</p>
-              </div>
-            </div>
-
-            <div className="space-y-4 ml-5 pl-5 border-l-2 border-border">
-              {memories.map((memory) => (
-                <div
-                  key={memory.id}
-                  className="bg-white/40 backdrop-blur-sm rounded-2xl p-6 border border-white/40 hover:bg-white/50 transition-all cursor-pointer group"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      {memory.type === 'audio' ? (
-                        <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center">
-                          <FileAudio className="w-5 h-5 text-accent" />
-                        </div>
-                      ) : (
-                        <div className="w-10 h-10 rounded-xl bg-secondary/20 flex items-center justify-center">
-                          <FileText className="w-5 h-5 text-secondary" />
-                        </div>
-                      )}
-                      <div>
-                        <h4>{memory.title}</h4>
-                        {memory.duration && (
-                          <p className="text-sm text-muted-foreground">{memory.duration} duration</p>
-                        )}
-                      </div>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+        {sortedDates.length > 0 ? (
+          <div className="space-y-8">
+            {sortedDates.map((date) => (
+              <div key={date}>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-secondary to-primary flex items-center justify-center">
+                    <Calendar className="w-5 h-5 text-white" />
                   </div>
-
-                  <p className="text-sm text-foreground/70 mb-4 line-clamp-2">
-                    {memory.transcript}
-                  </p>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-primary" />
-                      <span className="text-sm">Key Points</span>
-                    </div>
-                    <ul className="space-y-1 ml-6">
-                      {memory.keyPoints.map((point, index) => (
-                        <li key={index} className="text-sm text-foreground/80 list-disc">
-                          {point}
-                        </li>
-                      ))}
-                    </ul>
+                  <div>
+                    <h3>
+                      {new Date(date + 'T12:00:00').toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        month: 'long',
+                        day: 'numeric',
+                      })}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {groupedByDate[date].length}{' '}
+                      {groupedByDate[date].length === 1 ? 'memory' : 'memories'}
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
+
+                <div className="space-y-4 ml-5 pl-5 border-l-2 border-border">
+                  {groupedByDate[date].map((memory) => (
+                    <div
+                      key={memory.id}
+                      onClick={() => setSelected(memory)}
+                      className="bg-white/40 backdrop-blur-sm rounded-2xl p-6 border border-white/40 hover:bg-white/50 transition-all cursor-pointer group"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-10 h-10 rounded-xl ${TYPE_BG[memory.type]} flex items-center justify-center`}
+                          >
+                            {TYPE_ICON[memory.type]}
+                          </div>
+                          <div>
+                            <h4>{memory.title}</h4>
+                            {memory.duration && (
+                              <p className="text-sm text-muted-foreground">
+                                {memory.duration} duration
+                              </p>
+                            )}
+                            {memory.processingStatus === 'processing' && (
+                              <p className="text-sm text-accent flex items-center gap-1">
+                                <span className="inline-block w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                                Processing…
+                              </p>
+                            )}
+                            {memory.processingStatus === 'needs-transcript' && (
+                              <p className="text-sm text-muted-foreground">
+                                Needs transcript
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                      </div>
+
+                      {memory.transcript && (
+                        <p className="text-sm text-foreground/70 mb-4 line-clamp-2">
+                          {memory.transcript}
+                        </p>
+                      )}
+
+                      {memory.keyPoints.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-primary" />
+                            <span className="text-sm">Key Points</span>
+                          </div>
+                          <ul className="space-y-1 ml-6">
+                            {memory.keyPoints.slice(0, 3).map((point, index) => (
+                              <li key={index} className="text-sm text-foreground/80 list-disc">
+                                {point}
+                              </li>
+                            ))}
+                            {memory.keyPoints.length > 3 && (
+                              <li className="text-sm text-muted-foreground list-disc">
+                                +{memory.keyPoints.length - 3} more
+                              </li>
+                            )}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        ) : (
+          <div className="text-center py-16 bg-white/40 backdrop-blur-sm rounded-2xl border border-white/40">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-secondary/20 to-primary/20 flex items-center justify-center mx-auto mb-4">
+              {searchQuery ? (
+                <Search className="w-8 h-8 text-primary" />
+              ) : (
+                <Calendar className="w-8 h-8 text-primary" />
+              )}
+            </div>
+            <h3 className="mb-2">
+              {searchQuery ? `No results for "${searchQuery}"` : 'No memories yet'}
+            </h3>
+            <p className="text-muted-foreground">
+              {searchQuery
+                ? 'Try a different search term'
+                : 'Upload your first audio recording, text file, or quick note to get started'}
+            </p>
+          </div>
+        )}
       </div>
 
-      {Object.keys(groupedByDate).length === 0 && (
-        <div className="text-center py-16 bg-white/40 backdrop-blur-sm rounded-2xl border border-white/40">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-secondary/20 to-primary/20 flex items-center justify-center mx-auto mb-4">
-            <Calendar className="w-8 h-8 text-primary" />
-          </div>
-          <h3 className="mb-2">No memories yet</h3>
-          <p className="text-muted-foreground mb-6">
-            Upload your first audio recording or text file to get started
-          </p>
-          <button className="px-6 py-2 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors">
-            Upload Files
-          </button>
-        </div>
+      {selected && (
+        <MemoryDetailModal memory={selected} onClose={() => setSelected(null)} />
       )}
-    </div>
+    </>
   );
 }
