@@ -121,6 +121,13 @@ export default function UploadSection({ onNavigate }: Props) {
     const today = new Date().toISOString().split('T')[0];
 
     if (isAudio) {
+      const WHISPER_LIMIT = 25 * 1024 * 1024; // 25 MB
+      if (file.size > WHISPER_LIMIT) {
+        throw new Error(
+          `File is ${(file.size / 1024 / 1024).toFixed(0)} MB — Whisper's limit is 25 MB. Compress the audio or split it into shorter clips.`
+        );
+      }
+
       const duration = await getAudioDuration(file);
 
       if (openAIKey) {
